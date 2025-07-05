@@ -1,0 +1,50 @@
+from pwn import *
+from string import ascii_letters, digits
+
+# Connect to challenge
+r = remote('skrctf.me', 3019)
+
+# Charset to try
+charset = '}_!?' + digits + ascii_letters[::-1]
+
+# Function to encrypt arbitrary plaintext
+def encrypt(plaintext):
+    r.recvuntil(b"Choose an option:")
+    r.sendline(b"1")
+    r.recvuntil(b"Enter plaintext to encrypt:")
+    r.sendline(plaintext.encode())
+    r.recvline()  # "Ciphertext in Hex:"
+    blocks = []
+    while True:
+        line = r.recvline().strip()
+        if not line:
+            break
+        blocks.append(line.decode())
+    return blocks
+
+# Function to test if a plaintext causes the "cheat" warning
+def causes_cheat(cipher_blocks):
+    r.recvuntil(b"Choose an option:")
+    r.sendline(b"2")
+    r.recvuntil(b"Enter cipher text in Hex to decrypt:")
+    r.sendline("".join(cipher_blocks).encode())
+    res = r.recvline().decode()
+    return "cheat.. Hehe" in res
+
+# Start guessing
+known = "SKR{"
+print("[*] Starting guess with:", known)
+
+while not known.endswith("}"):
+    for ch in charset:
+        test = known + ch
+        enc_blocks = encrypt(test)
+        if causes_cheat(enc_blocks):
+            known += ch
+            print("[+] Found:", known)
+            break
+    else:
+        print("[-] No match found. Stopping.")
+        break
+
+print("[🎉] Final flag:", known)
